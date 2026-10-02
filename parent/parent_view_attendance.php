@@ -1,0 +1,138 @@
+<?php
+session_start();
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'PARENT') {
+    header("Location: ../index.php");
+    exit;
+}
+
+$conn = mysqli_connect("127.0.0.1", "root", "", "admin_panel", 3307);
+if (!$conn) die("DB Connection Failed");
+
+$user_id = (int)$_SESSION['user_id'];
+
+$parent_row = mysqli_fetch_assoc(mysqli_query($conn,"
+    SELECT student_id FROM parents WHERE user_id = $user_id
+")) ?: [];
+$student_id = (int)($parent_row['student_id'] ?? 0);
+
+$child_name = "-";
+if ($student_id) {
+    $child = mysqli_fetch_assoc(mysqli_query($conn,"
+        SELECT u.name, s.class, s.batch
+        FROM students s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.id = $student_id
+    "));
+    if ($child) $child_name = $child['name'];
+}
+
+$stats = ['total' => 0, 'present' => 0, 'absent' => 0];
+$records = false;
+
+if ($student_id) {
+    $srow = mysqli_fetch_assoc(mysqli_query($conn,"
+        SELECT COUNT(*) AS total, SUM(status='P') AS present, SUM(status='A') AS absent
+        FROM attendance
+        WHERE student_id = $student_id
+    "));
+    if ($srow) {
+        $stats['total']   = (int)($srow['total'] ?? 0);
+        $stats['present'] = (int)($srow['present'] ?? 0);
+        $stats['absent']  = (int)($srow['absent'] ?? 0);
+    }
+
+    $records = mysqli_query($conn,"
+        SELECT date, status
+        FROM attendance
+        WHERE student_id = $student_id
+        ORDER BY date DESC
+        LIMIT 100
+    ");
+}
+
+$pct = $stats['total'] > 0 ? round($stats['present'] / $stats['total'] * 100, 1) : 0;
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Child Attendance | Parent</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gradient-to-br from-indigo-50 to-blue-100 min-h-screen">
+
+<div class="bg-white shadow px-8 py-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-indigo-600">📅 Child Attendance</h1>
+    <a href="parent_dashboard.php" class="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+        Dashboard
+    </a>
+</div>
+
+<div class="max-w-5xl mx-auto px-6 py-10">
+
+<div class="mb-6 text-gray-600">
+    Child: <span class="font-bold text-gray-800"><?= htmlspecialchars($child_name) ?></span>
+</div>
+
+<!-- STATS -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+<div class="bg-white p-6 rounded-2xl shadow">
+    <p class="text-gray-500 text-sm">Total Days</p>
+    <h3 class="text-3xl font-bold text-indigo-600"><?= $stats['total'] ?></h3>
+</div>
+<div class="bg-white p-6 rounded-2xl shadow">
+    <p class="text-gray-500 text-sm">Present</p>
+    <h3 class="text-3xl font-bold text-green-600"><?= $stats['present'] ?></h3>
+</div>
+<div class="bg-white p-6 rounded-2xl shadow">
+    <p class="text-gray-500 text-sm">Absent</p>
+    <h3 class="text-3xl font-bold text-red-600"><?= $stats['absent'] ?></h3>
+</div>
+<div class="bg-white p-6 rounded-2xl shadow">
+    <p class="text-gray-500 text-sm">Attendance %</p>
+    <h3 class="text-3xl font-bold text-indigo-600"><?= $pct ?>%</h3>
+</div>
+</div>
+
+<!-- TABLE -->
+<div class="bg-white rounded-3xl shadow-xl p-8">
+<h2 class="text-xl font-bold mb-6">Attendance Records</h2>
+
+<div class="overflow-x-auto">
+<table class="w-full border-collapse">
+<thead>
+<tr class="bg-indigo-600 text-white">
+<th class="p-4 text-left">Date</th>
+<th class="p-4 text-center">Status</th>
+</tr>
+</thead>
+<tbody>
+<?php if (!$records || mysqli_num_rows($records) == 0): ?>
+<tr><td colspan="2" class="p-6 text-center text-gray-500">No attendance records found.</td></tr>
+<?php else: while ($r = mysqli_fetch_assoc($records)): ?>
+<tr class="border-b hover:bg-indigo-50">
+<td class="p-4 font-semibold"><?= htmlspecialchars($r['date']) ?></td>
+<td class="p-4 text-center">
+<?php if ($r['status'] === 'P'): ?>
+<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-bold">Present</span>
+<?php else: ?>
+<span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-bold">Absent</span>
+<?php endif; ?>
+</td>
+</tr>
+<?php endwhile; endif; ?>
+</tbody>
+</table>
+</div>
+
+</div>
+</div>
+
+<footer class="text-center text-gray-500 py-6">
+© <?= date('Y') ?> School Management System
+</footer>
+
+</body>
+</html>
