@@ -1,0 +1,24 @@
+# Old / archived project files
+archive/
+
+# Environment and local configuration
+.env
+.env.*
+config.local.php
+
+# Logs
+*.log
+
+# Uploads
+uploads/
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# VS Code local settings
+.vscode/
